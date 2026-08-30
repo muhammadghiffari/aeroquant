@@ -3,7 +3,6 @@
 **Use this top to bottom.** Each section ends with a concrete check — don't move to the next section until the check passes.
 
 **How to read each step:**
-
 - 🔧 **MANUAL** — a human has to click, sign up, or type a secret somewhere. Can't be delegated.
 - 🤖 **CLAUDE CODE** — once the manual part (if any) is done, you can literally paste the boxed prompt into Claude Code in that directory and let it do the rest.
 - Every command block starts with a one-line header showing **which user** and **which directory** it assumes — run `whoami` and `pwd` first if unsure, don't guess.
@@ -16,7 +15,7 @@
 ## 0. 🔧 Credentials inventory (get these open in tabs now)
 
 | Credential | Where | Note |
-| --- | --- | --- |
+|---|---|---|
 | Anthropic API key | `platform.claude.com` → API Keys → Create Key | **Standalone Console key, NOT your Claude Code login.** Different product surface — see PRD §5.3. |
 | Featherless API key | `featherless.ai` → account/dashboard | Confirmed secondary provider (PRD §5.3) — team already holds a paid Developer subscription, and Featherless is a confirmed hackathon tech/prize partner. **Each person gets their own key** (§1c) — don't share one. |
 | Alpaca scratch paper account | `app.alpaca.markets` | One per person, for testing only — never submitted |
@@ -87,24 +86,15 @@ sudo systemctl restart sshd
 
 Each person then connects with `ssh ghiffari@<server-ip>` (etc.) using their own password — no key exchange needed if you went this route.
 
-**Workspace layout — `git worktree`, not one shared directory.** A single shared clone doesn't work for three people on three branches (git only checks out one branch per working directory at a time). `git worktree` shares one `.git` object store across independent working directories — nothing duplicated on disk, but each person's directory is genuinely their own:
+**Workspace layout (`git worktree`) — covered at the end of §4, not here.** It needs the GitHub repo
+to actually exist first (§4 creates it) — running `git clone --bare <repo-url>` at this point fails
+with "repository not found" because there's nothing to clone yet. Finish this section's SSH-login
+setup, do §3 (swap) and §4 (repo + collaborators) in order, and the workspace-layout commands are
+waiting for you at the bottom of §4.
 
-```bash
-# 👤 as: whoever is doing initial setup (any of the three, or root)  📁 in: ~
-# once, for the shared object store:
-git clone --bare <repo-url> ~/aeroquant.git
-
-# then EACH person runs this themselves, once logged in as their own user:
-git worktree add -b strategy/ghiffari ~/aeroquant-ghiffari    # Ghiffari runs this
-git worktree add -b strategy/raka     ~/aeroquant-raka        # Raka runs this
-git worktree add -b strategy/amil     ~/aeroquant-amil        # Amil runs this
-```
-
-Note the `-b` flag — without it, this fails if the branch doesn't already exist yet, which it won't the first time.
-
-Each person now works inside `~/aeroquant-<their-name>/` as if it were a normal independent clone — `git status`, `git add`, `git commit`, `git push` all behave normally, while the Risk Gate and other shared code stay diffable across worktrees against one true `.git` history.
-
-**Check:** each person can `ssh` in under their own username, `git status` inside their own `~/aeroquant-<name>/` shows their own branch, and `git worktree list` (run by anyone) shows all three worktrees pointing at the one shared `.git`.
+**Check (for this section only):** each person can `ssh <name>@<server-ip>` in successfully under
+their own username and password (or key, if you went that route) — that's all §2 promises. The
+worktree/branch check comes at the end of §4.
 
 ---
 
@@ -161,7 +151,7 @@ gh repo edit <your-org-or-username>/aeroquant --add-collaborator radith-github-u
 ```
 
 He clones normally on his own laptop (`git clone`, then `git checkout -b strategy/radith`) rather than
-using the VPS `git worktree` setup in §5 below — see `ONBOARDING-RADITH.md` for his exact steps.
+using the VPS `git worktree` setup in §4c above — see `ONBOARDING-RADITH.md` for his exact steps.
 
 Or via the web: repo → Settings → Collaborators → Add people.
 
@@ -169,12 +159,51 @@ Or via the web: repo → Settings → Collaborators → Add people.
 
 **Check:** `gh repo view <org>/aeroquant` shows `Visibility: private` and lists all collaborators — three (Ghiffari, Raka, Amil) or four if Radith is in.
 
+### 4b. GitHub SSH key **from the VPS** — different key from your VPS-login key, easy to conflate
+
+The SSH key discussed in §2 gets you *into the VPS*. It has nothing to do with GitHub. To `git clone`/`push`/`pull` from the VPS, each person needs a **separate** keypair generated **on the VPS itself** (not their laptop), registered to **their own** GitHub account:
+
+```bash
+# 👤 as: <name> (ghiffari/raka/amil), on the VPS — once each, after accepting the collaborator invite
+ssh-keygen -t ed25519 -C "<name>@aeroquant-vps"
+# press Enter through the prompts (default path, no passphrase is fine for this use)
+cat ~/.ssh/id_ed25519.pub
+```
+Copy that output → github.com → Settings → SSH and GPG keys → New SSH key → paste it in. Do this
+**before** trying the `git clone --bare` step below, or it fails with a permission/auth error, not a
+"repo not found" error (the repo exists by now — this is a different failure mode).
+
+**Check:** `ssh -T git@github.com` (run as that person, on the VPS) replies `Hi <github-username>! You've successfully authenticated`.
+
+### 4c. Workspace layout — `git worktree`, not one shared directory (do this now, repo exists)
+
+A single shared clone doesn't work for three people on three branches (git only checks out one branch per working directory at a time). `git worktree` shares one `.git` object store across independent working directories — nothing duplicated on disk, but each person's directory is genuinely their own:
+
+```bash
+# 👤 as: ghiffari (do this once, after HIS OWN 4b key is registered)  📁 in: ~
+git clone --bare git@github.com:<org-or-username>/aeroquant.git ~/aeroquant.git
+```
+
+Then **each person, once their own 4b key is registered**, logged in as themselves:
+
+```bash
+git worktree add -b strategy/ghiffari ~/aeroquant-ghiffari    # Ghiffari runs this
+git worktree add -b strategy/raka     ~/aeroquant-raka        # Raka runs this
+git worktree add -b strategy/amil     ~/aeroquant-amil        # Amil runs this
+```
+
+Note the `-b` flag — without it, this fails if the branch doesn't already exist yet, which it won't the first time.
+
+Each person now works inside `~/aeroquant-<their-name>/` as if it were a normal independent clone — `git status`, `git add`, `git commit`, `git push` all behave normally, while the Risk Gate and other shared code stay diffable across worktrees against one true `.git` history.
+
+**Check:** each person's `git status` inside their own `~/aeroquant-<name>/` shows their own branch, and `git worktree list` (run by anyone on the VPS) shows all worktrees pointing at the one shared `~/aeroquant.git`.
+
 ---
 
 ## 5. Per-person repo clone and environment (repeat ×3, one per person, on the VPS)
 
 ```bash
-# 👤 as: ghiffari  📁 in: ~/aeroquant-ghiffari/   (created by the worktree command in §2 — cd into it first)
+# 👤 as: ghiffari  📁 in: ~/aeroquant-ghiffari/   (created by the worktree command in §4c — cd into it first)
 cd ~/aeroquant-ghiffari
 python3.11 -m venv .venv
 source .venv/bin/activate
@@ -488,14 +517,11 @@ Yes, this really is this easy — step by step:
 4. BotFather replies with a message containing your **bot token** — a long string like `123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ`. Copy it.
 5. Now open a chat with **your own new bot** (search its username, same as searching any contact) and send it any message, e.g. "hi" — this is required so Telegram knows to let the bot message you back.
 6. Find your **chat ID** by running this from any machine with `curl`:
-
    ```bash
    curl "https://api.telegram.org/bot<YOUR_TOKEN_HERE>/getUpdates"
    ```
-
    Look for `"chat":{"id":123456789,...}` in the JSON response — that number is your `chat_id`.
 7. Add both to `.env` (each person's own, if going with one bot per person; or shared if the team prefers one alert channel):
-
    ```bash
    echo 'TELEGRAM_BOT_TOKEN=123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ' >> .env
    echo 'TELEGRAM_CHAT_ID=123456789' >> .env
@@ -530,13 +556,11 @@ Each person, on their own official account and their own `aeroquant-<name>.servi
 1. **Now through the weekend:** keep running against your own **scratch** account. Don't touch the official one yet.
 2. **Any time before Monday:** create **your own** official dedicated $100,000 Alpaca paper account. Record its account ID. Don't trade on it.
 3. **Monday, Aug 31, 9:30 AM ET, exactly:**
-
    ```bash
    # 👤 as: ghiffari  📁 in: ~/aeroquant-ghiffari/
    # edit .env: swap APCA_*, ALPACA_ACCOUNT_ID, ENVIRONMENT_ID=official-ghiffari
    sudo systemctl start aeroquant-ghiffari
    ```
-
    This is **your** first scored cycle. Watch its logs end to end.
 4. **Repo** stays private through this — just don't forget to flip it public before submission Friday.
 

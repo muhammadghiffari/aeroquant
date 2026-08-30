@@ -1,0 +1,12 @@
+langgraph
+langchain-anthropic
+langchain-openai
+anthropic
+alpaca-py
+pydantic>=2
+fastapi
+uvicorn
+numpy
+pandas
+python-dotenv
+httpx

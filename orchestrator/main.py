@@ -4,11 +4,13 @@ import time
 import requests
 from dotenv import load_dotenv
 
+from langgraph.graph import StateGraph, END
+from langgraph.checkpoint.memory import MemorySaver
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from agents.bull_put_analyst import BullPutAnalyst
-from risk_management.risk_gate import RiskGate, RiskGateException
-from execution.alpaca_executor import AlpacaExecutor
+from state.agent_state import AgentState
+from orchestrator.graph_nodes import node_fetch_data, node_analyze, node_risk_gate, node_execute
 
 def send_telegram_alert(message: str):
     token = os.environ.get("TELEGRAM_BOT_TOKEN")
@@ -28,65 +30,98 @@ def send_telegram_alert(message: str):
     except Exception as e:
         print(f"[ERROR] Failed to send Telegram alert: {e}")
 
-def run_cycle():
+def create_agent_graph():
+    """Membangun LangGraph StateMachine."""
+    # 1. Inisialisasi Graph
+    workflow = StateGraph(AgentState)
+    
+    # 2. Tambahkan Nodes
+    workflow.add_node("fetch_data", node_fetch_data)
+    workflow.add_node("analyze", node_analyze)
+    workflow.add_node("risk_gate", node_risk_gate)
+    workflow.add_node("execute", node_execute)
+    
+    # 3. Definisikan Edges (Alur)
+    workflow.set_entry_point("fetch_data")
+    workflow.add_edge("fetch_data", "analyze")
+    workflow.add_edge("analyze", "risk_gate")
+    
+    # Edge bersyarat dari risk_gate
+    def should_execute(state: AgentState):
+        if state.get("risk_passed"):
+            return "execute"
+        else:
+            return "end"
+            
+    workflow.add_conditional_edges(
+        "risk_gate",
+        should_execute,
+        {
+            "execute": "execute",
+            "end": END
+        }
+    )
+    workflow.add_edge("execute", END)
+    
+    # 4. Tambahkan Checkpointer untuk State Memory
+    memory = MemorySaver()
+    app = workflow.compile(checkpointer=memory)
+    return app
+
+def run_cycle(app):
     print("==================================================")
-    print("Memulai Trading Cycle: Bull Put Spread Harvester")
+    print("Memulai Trading Cycle: Bull Put Spread (LangGraph)")
     print("==================================================")
     
-    symbol = "SPY"
+    # Inisialisasi state awal
+    initial_state = {
+        "symbol": "SPY",
+        "current_price": None,
+        "market_context": None,
+        "option_chain": None,
+        "trade_proposal": None,
+        "risk_passed": False,
+        "risk_message": None,
+        "execution_success": False,
+        "execution_message": None
+    }
     
-    # 1. Analisa LLM
-    analyst = BullPutAnalyst()
+    # Thread ID penting di LangGraph agar memori tersimpan untuk eksekusi ini
+    config = {"configurable": {"thread_id": "amil-trading-thread-1"}}
+    
     try:
-        proposal = analyst.analyze_and_propose(symbol)
-        print("\n[LLM PROPOSAL]")
-        print(proposal.model_dump_json(indent=2))
-    except Exception as e:
-        msg = f"❌ [ERROR] Gagal mendapatkan proposal dari LLM: {e}"
-        print(msg)
-        send_telegram_alert(msg)
-        return
-
-    # 2. Risk Gate (Hard Requirement)
-    gate = RiskGate(max_quantity=10)
-    try:
-        is_safe = gate.validate_proposal(proposal)
-    except RiskGateException as e:
-        msg = f"🚨 [RISK GATE BLOCKED] Proposal ditolak!\nAlasan: {e}"
-        print(msg)
-        send_telegram_alert(msg)
-        return
-    except Exception as e:
-        msg = f"❌ [ERROR] Risk Gate gagal memproses: {e}"
-        print(msg)
-        send_telegram_alert(msg)
-        return
-
-    # 3. Eksekusi
-    if is_safe:
-        executor = AlpacaExecutor()
-        success = executor.execute_bull_put_spread(proposal)
+        # Jalankan graph sampai selesai
+        result = app.invoke(initial_state, config=config)
         
-        if success:
-            msg = f"✅ [TRADE EXECUTED] Bull Put Spread untuk {symbol} berhasil dieksekusi!\nShort Strike: {proposal.short_strike}\nLong Strike: {proposal.long_strike}"
+        # Evaluasi Hasil Akhir
+        if result.get("execution_success"):
+            msg = f"[TRADE EXECUTED] {result.get('execution_message')}"
             print(msg)
             send_telegram_alert(msg)
         else:
-            msg = f"❌ [EXECUTION FAILED] Gagal mengirim order ke Alpaca."
-            print(msg)
-            send_telegram_alert(msg)
+            if not result.get("risk_passed"):
+                msg = f"[BLOCKED] {result.get('risk_message')}"
+                print(msg)
+                send_telegram_alert(msg)
+            else:
+                msg = f"[ERROR] Eksekusi Gagal: {result.get('execution_message')}"
+                print(msg)
+                send_telegram_alert(msg)
+                
+    except Exception as e:
+        msg = f"[FATAL ERROR] Siklus gagal: {e}"
+        print(msg)
+        send_telegram_alert(msg)
 
 if __name__ == "__main__":
     load_dotenv()
+    app = create_agent_graph()
     
-    # Check if run in loop mode (e.g. for systemd)
     if "--loop" in sys.argv:
-        print("Starting in LOOP mode...")
-        send_telegram_alert("🚀 Bot Bull Put Spread (Amil) Started in Loop Mode!")
+        print("Starting in LOOP mode with LangGraph...")
+        send_telegram_alert("🚀 Bot LangGraph Bull Put Spread (Amil) Started in Loop Mode!")
         while True:
-            run_cycle()
-            # Sleep 1 jam sebelum analisa lagi
+            run_cycle(app)
             time.sleep(3600)
     else:
-        # One-off run
-        run_cycle()
+        run_cycle(app)

@@ -48,6 +48,9 @@ from __future__ import annotations
 import logging
 import os
 import time
+from dotenv import load_dotenv
+
+load_dotenv()
 from dataclasses import dataclass
 from typing import Literal, TypeVar
 
@@ -74,6 +77,10 @@ def _anthropic(model: str) -> ChatAnthropic:
     return ChatAnthropic(
         model=model,
         api_key=os.environ["ANTHROPIC_API_KEY"],
+        base_url=os.environ.get(
+            "ANTHROPIC_BASE_URL",
+            "https://api.anthropic.com",
+        ),
         timeout=_CANDIDATE_TIMEOUT_S,
         max_retries=0,  # retries happen at the fallback-chain level below, not inside one client
     )
@@ -151,15 +158,15 @@ def _build_role_chains() -> dict[str, list[tuple[str, object]]]:
     # explicit team decision.
     return {
         "fast_analysis": [
-            ("anthropic-haiku-4.5", _anthropic("claude-haiku-4-5-20251001")),
+            ("bluepack-coding-fast", _anthropic(os.environ.get("ANTHROPIC_FAST_MODEL", "bluepack-coding"))),
             ("featherless-qwen3-32b", _featherless("Qwen/Qwen3-32B")),
         ],
         "strong_reasoning": [
-            ("anthropic-sonnet-5", _anthropic("claude-sonnet-5")),
+            ("bluepack-coding-reasoning", _anthropic(os.environ.get("ANTHROPIC_REASONING_MODEL", "bluepack-coding"))),
             ("featherless-qwen3-32b", _featherless("Qwen/Qwen3-32B")),
         ],
         "critic": [
-            ("anthropic-sonnet-5", _anthropic("claude-sonnet-5")),
+            ("bluepack-coding-reasoning", _anthropic(os.environ.get("ANTHROPIC_REASONING_MODEL", "bluepack-coding"))),
             ("featherless-qwen3-32b", _featherless("Qwen/Qwen3-32B")),
         ],
     }
@@ -252,7 +259,10 @@ if __name__ == "__main__":
         parsed, provider = gateway.generate(
             role=f"smoke_test_{policy}",
             policy=policy,  # type: ignore[arg-type]
-            messages=[{"role": "user", "content": "Reply with exactly: OK"}],
+            messages=[{
+                "role": "user",
+                "content": "Return a structured Ping object with reply exactly equal to OK.",
+            }],
             response_model=_PingReply,
             correlation_id="smoke-test",
         )

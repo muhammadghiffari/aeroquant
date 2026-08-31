@@ -55,7 +55,6 @@ class AlpacaExecutor:
 
         payload = {
             "class": "mleg",
-            "symbol": proposal.symbol,
             "qty": str(proposal.quantity),
             "order_class": "mleg",
             "legs": [

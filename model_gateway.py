@@ -207,7 +207,7 @@ class ModelGateway:
                 logger.info("skip_open_breaker provider=%s role=%s", provider_name, role)
                 continue
             try:
-                structured_client = client.with_structured_output(response_model, include_raw=True)
+                structured_client = client.with_structured_output(response_model, include_raw=True, method="function_calling")
                 result = structured_client.invoke(
                     messages,
                     config={"run_name": role, "tags": [correlation_id, provider_name]},

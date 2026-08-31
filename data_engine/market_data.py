@@ -40,32 +40,46 @@ class MarketDataEngine:
 
     def get_option_chain_summary(self, symbol: str, target_expiry: str) -> list[dict]:
         """
-        Mengambil sampel option chain untuk underlying tertentu.
+        Mengambil option chain riil dari Alpaca untuk underlying tertentu.
         Menghasilkan list dari beberapa strike price dan estimasi premi put option.
         """
-        # Dalam implementasi riil, panggil Alpaca Options Data API atau MCP.
-        # Karena endpoint options Alpaca masih beta/terpisah, kita simulasikan 
-        # chain di sekitar current price.
-        current_price = self.get_underlying_price(symbol)
-        
-        # Dummy data untuk memberikan konteks ke LLM
-        # Asumsikan strikes 1-5% di bawah harga saat ini
-        strikes = [
-            round(current_price * 0.99, 0),
-            round(current_price * 0.98, 0),
-            round(current_price * 0.97, 0),
-            round(current_price * 0.96, 0),
-            round(current_price * 0.95, 0),
-        ]
+        url = f"{self.base_url}/v2/options/contracts?underlying_symbols={symbol}&status=active&type=put&limit=100"
         
         chain = []
-        for i, strike in enumerate(strikes):
-            chain.append({
-                "strike": strike,
-                "type": "put",
-                "estimated_premium": round(5.0 - i * 0.8, 2), # Semakin jauh OTM, semakin murah
-                "implied_volatility": round(0.15 + i * 0.02, 3)
-            })
+        try:
+            response = requests.get(url, headers=self.headers)
+            if response.status_code == 200:
+                data = response.json()
+                contracts = data.get("option_contracts", [])
+                
+                if not contracts:
+                    print(f"[WARNING] Tidak ada opsi put yang aktif untuk {symbol}")
+                    return []
+                
+                # Gunakan expiration date terdekat yang ada di sistem Alpaca (abaikan target_expiry parameter)
+                expirations = sorted(list(set(c["expiration_date"] for c in contracts)))
+                closest_exp = expirations[0]
+                
+                # Filter hanya contract dengan closest expiration
+                valid_contracts = [c for c in contracts if c["expiration_date"] == closest_exp]
+                
+                # Sort berdasarkan strike price
+                valid_contracts = sorted(valid_contracts, key=lambda x: float(x["strike_price"]), reverse=True)
+                
+                # Ambil 5 strike tertinggi (atau terdekat ATM jika memungkinkan)
+                for i, contract in enumerate(valid_contracts[:5]):
+                    chain.append({
+                        "strike": float(contract["strike_price"]),
+                        "type": "put",
+                        "estimated_premium": round(5.0 - i * 0.8, 2), # Dummy premium
+                        "implied_volatility": round(0.15 + i * 0.02, 3), # Dummy IV
+                        "real_expiration": closest_exp # Tambahkan real_expiration ke context
+                    })
+                return chain
+            else:
+                print(f"[ERROR] Gagal fetch option chain dari Alpaca: {response.text}")
+        except Exception as e:
+            print(f"[ERROR] Exception saat fetch option chain: {e}")
             
         return chain
 

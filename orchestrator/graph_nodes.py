@@ -24,6 +24,9 @@ def node_fetch_data(state: AgentState) -> AgentState:
     target_expiry = (date.today() + timedelta(days=7)).strftime("%Y-%m-%d")
     chain = engine.get_option_chain_summary(symbol, target_expiry)
     
+    if chain and "real_expiration" in chain[0]:
+        target_expiry = chain[0]["real_expiration"]
+    
     return {
         **state,
         "current_price": current_price,

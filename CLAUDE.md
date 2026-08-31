@@ -15,7 +15,12 @@ These are correctness/safety requirements, not style preferences. Do not relax, 
 3. **Limit orders only for options.** No market orders for options, ever (PRD §7). Compute the aggregate mid price from live bid/ask and pad ±5% toward the adverse side.
 4. **No position may be allowed to expire naturally.** This is tied to a confirmed, unresolved Alpaca paper-trading settlement bug (PRD §9) *and* a separately-confirmed fact about how the scored equity snapshot works (settlement posts overnight, not same-day — PRD §11/§12). Every position must be closed via an explicit close order before its own expiry. This is enforced by a scheduled force-close job, not left to agent discretion.
 5. **Hard deadline: zero open positions by Thursday, Sep 3, 4:15 PM ET.** Not Friday morning — see PRD §9/§11/§12 for why. Any scheduling logic, cron expression, or "last entry cutoff" constant should respect this, not the nominal Friday hackathon deadline. **If the team is running multiple parallel strategy accounts (see PRD §11b), this deadline applies to every account, not just whichever one ends up submitted** — the winning account isn't known until Friday morning, so a "flat" account that turns out to be the best performer must also be genuinely flat and settlement-clean.
-6. **LLM API access is always a standalone, paid API key.** `ANTHROPIC_API_KEY` from `platform.claude.com`, `FEATHERLESS_API_KEY` from the Featherless dashboard. **Never** a Claude Code or ChatGPT-Plus subscription OAuth token, and never a third-party proxy/base-URL claiming to route around official billing (`ANTHROPIC_BASE_URL` should never point anywhere except `api.anthropic.com` or not be set at all). This was raised and explicitly rejected — see PRD §5.3. If you see code or a suggestion pointing at a non-official base URL for a paid-model provider, flag it, don't implement it.
+6. **LLM API access is always a standalone, paid API key.** `ANTHROPIC_API_KEY` from `platform.claude.com`, `FEATHERLESS_API_KEY` from the Featherless dashboard, or an explicitly approved Anthropic-compatible paid provider endpoint. The `ANTHROPIC_BASE_URL` environment variable is governed as follows:
+   - **Allowed:** official `https://api.anthropic.com` (default, always permitted without any `ANTHROPIC_BASE_URL` setting).
+   - **Allowed:** explicitly approved Anthropic-compatible paid provider endpoints, listed here and in PRD §5.3.
+   - **Prohibited:** personal-subscription proxies (Claude Code, ChatGPT-Plus, or similar OAuth tokens routing through unofficial endpoints), OAuth relay setups, and unverified or self-hosted endpoints.
+   - **Approved as of 2026-08-31:** BluePack `https://ai.bluepack.my.id/anthropic` — adopted as the project's primary Anthropic-compatible provider per explicit team decision (see PRD §5.3).
+   - Do not set `ANTHROPIC_BASE_URL` to any other endpoint without an explicit team decision documented in PRD §5.3.
 7. **All persisted state is account-scoped.** Every DB row, log line, and report carries `alpaca_account_id`. The scratch/testing account and the official competition account must never share state, and the LangGraph checkpointer's `thread_id` must be `f"{alpaca_account_id}:{cycle_id}"`, not just `cycle_id`.
 8. **An accepted-but-unfilled order is never recorded as an open position, and a submitted-but-unfilled close is never recorded as closed.** Only broker-confirmed fills/closes are authoritative. A crash-and-restart must resume cleanly without duplicating an order (idempotency key on every `OrderIntent`/`CloseIntent`).
 
@@ -34,9 +39,10 @@ data_engine/        Alpaca MCP/SDK adapters. Normalizes everything into Evidence
                     (source, freshness, fallback_tier, quality_flags) before it reaches any agent.
 evaluation/         Episodic + semantic memory (FinMem), Reflexion critique/rule-governance,
                     SQLite store.
-model_gateway.py    Multi-provider LLM client: Anthropic primary, Featherless (Qwen3-32B)
-                    fallback, circuit breaker per provider. Role policies: fast_analysis,
-                    strong_reasoning, critic — see PRD §5.2/§5.3 for which role uses which.
+model_gateway.py    Multi-provider LLM client: BluePack (Anthropic-compatible) primary,
+                    Featherless (Qwen3-32B) fallback, circuit breaker per provider.
+                    ANTHROPIC_BASE_URL=https://ai.bluepack.my.id/anthropic (adopted 2026-08-31).
+                    Role policies: fast_analysis, strong_reasoning, critic — see PRD §5.3.
 win_rate_validator.py   Empirical strike-placement/SL-TP validator against real historical
                     data. Run before trusting any §8 risk-parameter change.
 ```

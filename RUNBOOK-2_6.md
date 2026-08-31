@@ -275,7 +275,7 @@ Now put **real scratch-account** values into `.env` (never `.env.example`) — `
 ```bash
 # 👤 as: ghiffari (repeat for raka, amil)  📁 in: anywhere
 curl -sS -o /dev/null -w "Alpaca paper API: %{http_code}\n" https://paper-api.alpaca.markets/v2/clock
-curl -sS -o /dev/null -w "Anthropic API:    %{http_code}\n" https://api.anthropic.com
+curl -sS -o /dev/null -w "BluePack API:    %{http_code}\n" https://ai.bluepack.my.id/anthropic
 curl -sS -o /dev/null -w "Featherless API:  %{http_code}\n" https://api.featherless.ai/v1
 ```
 
@@ -283,13 +283,17 @@ curl -sS -o /dev/null -w "Featherless API:  %{http_code}\n" https://api.featherl
 
 ---
 
-## 7. Anthropic smoke test (5 min, per person)
+## 7. BluePack / `model_gateway.py` smoke test (5 min, per person)
+
+**BluePack (`https://ai.bluepack.my.id/anthropic`) is the adopted primary Anthropic-compatible endpoint** (PRD §5.3, adopted 2026-08-31). This test verifies it end-to-end before any scored trading.
+
+Set `ANTHROPIC_BASE_URL=https://ai.bluepack.my.id/anthropic` in your `.env` alongside your `ANTHROPIC_API_KEY`.
 
 🤖 **CLAUDE CODE prompt** (run inside your own `~/aeroquant-<name>/`, venv active, `.env` filled in):
 
-> Write `tests/smoke_anthropic.py` that loads `.env`, calls both `claude-haiku-4-5-20251001` and `claude-sonnet-5` with a one-line "reply with exactly: OK" prompt, and prints the reply plus input/output token counts for each. Then run it.
+> Write `tests/smoke_anthropic.py` that loads `.env`, calls both `claude-haiku-4-5-20251001` and `claude-sonnet-5` via `model_gateway.py`'s `ModelGateway` with the `fast_analysis` policy, using a one-line "reply with exactly: OK" prompt, and prints the reply plus the provider name returned. Then run it.
 
-**Check:** both models reply `OK` with nonzero token counts. Auth error → double-check it's the Console key, not a Claude Code login. 429 → note your rate-limit tier now.
+**Check:** both models reply `OK` via BluePack with nonzero token counts. Auth error → double-check the API key is correct and `ANTHROPIC_BASE_URL` is set. 429 → note your rate-limit tier now.
 
 ---
 
@@ -302,7 +306,7 @@ Copy `model_gateway.py` into your own worktree root first (`~/aeroquant-<name>/m
 python model_gateway.py
 ```
 
-**Check:** every policy prints `served by anthropic-...` under normal conditions. To confirm the Featherless fallback itself works:
+**Check:** every policy prints `served by bluepack-coding-...` under normal conditions (BluePack is the adopted primary; PRD §5.3). To confirm the Featherless fallback itself works:
 
 ```bash
 # 👤 as: ghiffari  📁 in: ~/aeroquant-ghiffari/

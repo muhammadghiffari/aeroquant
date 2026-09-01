@@ -382,7 +382,9 @@ Expect `index-data` calls to fail or return empty (`get_index_latest_values`/`ge
 
 ---
 
-## 11. Deterministic core: build and unit-test first, before any LLM wiring
+## 11. Deterministic core: build and unit-test first, before any LLM wiring — COMPLETE
+
+**Status — COMPLETE:** Quant Engine, Risk Manager, and ForceCloseGuard are implemented. The deterministic core has been committed, and the unit test suite is green with **138 passing tests**.
 
 🤖 **CLAUDE CODE prompt** (per person, inside their own worktree — this is the bulk of Day 0/1 build work):
 
@@ -408,7 +410,27 @@ Compare every `(dte, em_mult)` row's empirical win rate against the printed brea
 
 ---
 
+## 11b. Execution integration — COMPLETE
+
+**Status — COMPLETE:**
+
+- Deterministic Alpaca broker adapter implemented; alpaca-py 0.44.0 compatibility verified.
+- Typed, atomic MLEG entry requests enforce LIMIT-only execution, signed debit/credit pricing, account scoping, and restart-safe `client_order_id` idempotency.
+- Broker uncertainty fails closed; the deterministic force-close execution path and `OrderIntent` expiry enforcement are implemented.
+- Read-only Alpaca Paper integration completed: 0 positions and 0 open orders were observed; no order submission or cancellation was performed.
+- Execution integration committed as `10fa950`.
+
+---
+
 ## 12. LangGraph wiring
+
+**Current verified status — IN PROGRESS; do not mark this section COMPLETE.**
+
+- Durable LangGraph checkpointing is verified: `compile_graph()` now defaults to the official disk-backed `SqliteSaver` at `state/langgraph_checkpoints.db`, with an optional explicit SQLite path for operational/test isolation. New graph/checkpointer instances recover the same account-scoped thread from disk, and a separate-process test writes in process A and recovers in process B.
+- The installed official saver creates its database schema with SQLite WAL mode; the real persistence test queries `PRAGMA journal_mode` and verifies `wal` on the resulting file.
+- Persisted checkpoints use `JsonPlusSerializer(pickle_fallback=False, allowed_json_modules=None, allowed_msgpack_modules=None)`, so pickle and arbitrary application-module deserialization are disabled. Recovered data is validated through `CycleState` at the graph boundary.
+- There is no implemented deterministic XSP contract-selection/CandidateBuilder in this repository. The default boundary therefore emits an explicit `CANDIDATE_NOT_READY` safe rejection; it does not fabricate option symbols, strikes, expiries, quotes, account context, or an executable intent.
+- Still unresolved: deterministic XSP contract selection/CandidateBuilder, a concrete production `CyclePersistence` store beyond checkpoints, functional XSP `get_option_contracts` MCP check, embedding-provider decision, and the MCP-compliance interpretation for the EvidenceGateway pattern.
 
 🤖 **CLAUDE CODE prompt:**
 

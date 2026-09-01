@@ -1,4 +1,5 @@
 langgraph
+langgraph-checkpoint-sqlite==3.1.1
 langchain-anthropic
 langchain-openai
 anthropic

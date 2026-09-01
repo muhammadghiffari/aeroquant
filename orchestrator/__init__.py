@@ -49,6 +49,8 @@ from orchestrator.boundaries import (
     ExitPolicy,
 )
 
+from orchestrator.candidate_builder import XSPCandidateBuilder
+
 from orchestrator.graph import (
     DEFAULT_CHECKPOINT_DATABASE,
     build_graph,
@@ -86,6 +88,7 @@ __all__ = [
     "StubEvidenceGatherer",
     "StubSemanticMemory",
     "StubCyclePersistence",
+    "XSPCandidateBuilder",
     # Graph
     "DEFAULT_CHECKPOINT_DATABASE",
     "build_graph",

@@ -1,0 +1,13 @@
+alpaca-py>=0.44.0
+pandas>=2.0
+numpy>=1.24
+python-dotenv>=1.0
+requests>=2.31
+fastapi>=0.104
+uvicorn>=0.24
+pytest>=7.4
+mcp>=1.0
+lancedb>=0.6
+openai>=1.40
+anthropic>=0.34
+langgraph>=0.2,<1

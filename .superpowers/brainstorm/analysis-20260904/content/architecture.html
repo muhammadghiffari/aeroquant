@@ -1,0 +1,55 @@
+<h2>AeroQuant: architecture and trading flow</h2>
+<p class="subtitle">Verified runtime path: market data -> deterministic quant gates -> LLM interpretation -> deterministic risk and execution.</p>
+
+<div class="mockup">
+  <div class="mockup-header">Entry cycle</div>
+  <div class="mockup-body">
+    <div style="display:grid;gap:10px;grid-template-columns:repeat(3,1fr);align-items:stretch">
+      <div style="padding:14px;border:1px solid #8aa4b8;border-radius:10px;background:#eef6fa">
+        <strong>1. Data</strong><br>
+        Alpaca stock/options/news APIs<br>
+        <small>Optional BTC shadow telemetry</small>
+      </div>
+      <div style="padding:14px;border:1px solid #8aa4b8;border-radius:10px;background:#eef6fa">
+        <strong>2. Quant engine</strong><br>
+        Momentum, probability lower bound, liquidity, DTE, delta, quote age
+      </div>
+      <div style="padding:14px;border:1px solid #8aa4b8;border-radius:10px;background:#eef6fa">
+        <strong>3. Candidate whitelist</strong><br>
+        Exact long call/put contracts only
+      </div>
+    </div>
+    <div style="text-align:center;font-size:22px;padding:8px">↓</div>
+    <div style="display:grid;gap:10px;grid-template-columns:repeat(3,1fr);align-items:stretch">
+      <div style="padding:14px;border:1px solid #c7a56a;border-radius:10px;background:#fff7e6">
+        <strong>LLM sub-agents</strong><br>
+        Trend, volatility, news/earnings
+      </div>
+      <div style="padding:14px;border:1px solid #c7a56a;border-radius:10px;background:#fff7e6">
+        <strong>Managers + chief</strong><br>
+        Synthesize context, choose candidate or WAIT
+      </div>
+      <div style="padding:14px;border:1px solid #c7a56a;border-radius:10px;background:#fff7e6">
+        <strong>Fail closed</strong><br>
+        Invalid JSON, stale data, critical event, or no candidate -> WAIT
+      </div>
+    </div>
+    <div style="text-align:center;font-size:22px;padding:8px">↓</div>
+    <div style="display:grid;gap:10px;grid-template-columns:repeat(3,1fr);align-items:stretch">
+      <div style="padding:14px;border:1px solid #5a9b75;border-radius:10px;background:#edf8f0">
+        <strong>Risk gate</strong><br>
+        Max loss, exposure, buying power, liquidity, DTE, circuit breaker
+      </div>
+      <div style="padding:14px;border:1px solid #5a9b75;border-radius:10px;background:#edf8f0">
+        <strong>Execution</strong><br>
+        alpaca-py, paper-only, idempotent intents, limit order
+      </div>
+      <div style="padding:14px;border:1px solid #5a9b75;border-radius:10px;background:#edf8f0">
+        <strong>Monitor + evidence</strong><br>
+        Fill-based TP/SL, reversal exit, ledger, SQLite, JSON reports, Telegram
+      </div>
+    </div>
+  </div>
+</div>
+
+<p><strong>Current operational posture:</strong> paper trading only. Latest available cycle report records no positions, no orders, and a kill switch after five consecutive rejections.</p>

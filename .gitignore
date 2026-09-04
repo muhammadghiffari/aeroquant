@@ -1,0 +1,21 @@
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+
+# Runtime artifacts
+reports/*.json
+state/*.json
+state/*.db
+state/*.db-*
+state/*.sqlite*
+state/memory_lancedb/
+state/dashboard_screenshot.png
+.playwright-mcp/
+*.log
+.pytest_cache/
+*.lock
